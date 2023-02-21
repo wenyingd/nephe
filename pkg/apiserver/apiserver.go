@@ -17,6 +17,7 @@ package apiserver
 import (
 	"context"
 	"net"
+	"os"
 
 	logger "github.com/go-logr/logr"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -27,6 +28,7 @@ import (
 	genericapiserver "k8s.io/apiserver/pkg/server"
 	genericoptions "k8s.io/apiserver/pkg/server/options"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/tools/clientcmd"
 	controllerruntime "sigs.k8s.io/controller-runtime"
 
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
@@ -72,6 +74,15 @@ func NewConfig(codecs serializer.CodecFactory, vmpIndexer cache.Indexer, cloudIn
 
 	if err := recommend.SecureServing.ApplyTo(&serverConfig.SecureServing, &serverConfig.LoopbackClientConfig); err != nil {
 		return nil, err
+	}
+	kubeconfigPath := os.Getenv(clientcmd.RecommendedConfigPathEnvVar)
+	if len(kubeconfigPath) > 0 {
+		recommend.CoreAPI = &genericoptions.CoreAPIOptions{CoreAPIKubeconfigPath: kubeconfigPath}
+		if err := recommend.CoreAPI.ApplyTo(serverConfig); err != nil {
+			return nil, err
+		}
+		recommend.Authentication.RemoteKubeConfigFile = kubeconfigPath
+		recommend.Authorization.RemoteKubeConfigFile = kubeconfigPath
 	}
 	if err := recommend.Authentication.ApplyTo(&serverConfig.Authentication, serverConfig.SecureServing,
 		serverConfig.OpenAPIConfig); err != nil {
